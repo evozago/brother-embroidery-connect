@@ -1,8 +1,9 @@
-# bordadeira-brother
+# brother-embroidery-connect
 
-Controle e integração de **bordadeiras Brother** (linha Innov-is / WLAN, ex.:
-**BP1530L**) pela **rede local** — sem o app Artspira, sem o programa Design
-Database Transfer e sem nuvem.
+Sistema de **conexão e automação em rede para bordadeiras Brother** (linha
+Innov-is / WLAN — testado na **BP1530L**). Monitora, envia e gerencia bordados
+pela rede, **sem o app Artspira, sem o programa Design Database Transfer e sem
+nuvem**.
 
 Inclui:
 
