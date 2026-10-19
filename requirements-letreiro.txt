@@ -1,0 +1,8 @@
+# Gerador de letreiros (nomes/datas em .pes) — opcional.
+# Instale com:  pip3 install -r requirements-letreiro.txt
+pyembroidery
+numpy
+opencv-python-headless
+scikit-image
+shapely
+pillow

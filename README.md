@@ -12,8 +12,11 @@ Inclui:
 - **CLI** para automação/scripts (`send_cli.py`).
 - **Biblioteca** Python do protocolo (`brother_machine.py`).
 - Documentação do protocolo descoberto por engenharia reversa (`PROTOCOL.md`).
+- **Gerador de letreiros** (`/letreiro` no painel, ou `lettering.py`): digita o
+  nome, escolhe fonte/cor/tamanho e já sai o `.pes` pronto para bordar.
 
-Só precisa de **Python 3** (biblioteca padrão, nada para instalar).
+Só precisa de **Python 3** (biblioteca padrão, nada para instalar). O gerador de
+letreiros é opcional e usa algumas bibliotecas extras (`requirements-letreiro.txt`).
 
 > ⚠️ Projeto não-oficial, sem vínculo com a Brother. Sem garantia. Use na sua
 > própria máquina, por sua conta e risco.
@@ -94,6 +97,54 @@ A máquina expõe um servidor HTTPS local com a API `pedxml`. O envio é um
 `POST multipart` para `/sewing/sewing.cgi`. Detalhes completos em
 [`PROTOCOL.md`](PROTOCOL.md).
 
+## Gerador de letreiros (nomes, datas, frases)
+
+Abra o painel e clique em **✍️ Gerador de letreiros** (ou vá direto em
+`http://localhost:8765/letreiro`). Precisa das bibliotecas extras uma vez:
+
+```bash
+pip3 install -r requirements-letreiro.txt
+```
+
+Na tela você escolhe:
+
+- **Texto** — Enter quebra a linha (ex.: nome em cima, sobrenome embaixo).
+- **Fonte** — 9 opções (Great Vibes, Parisienne, Allura, Alex Brush, Dancing
+  Script, Cookie, Pacifico, Playfair Itálico, Quicksand).
+- **Tamanho** — largura e/ou altura máxima em mm; o desenho cresce até o
+  primeiro limite, sem deformar.
+- **Esticar** na horizontal / vertical, **espaço entre letras** e **entre linhas**.
+- **Cor da linha** e **preenchimento** (mais aberto / normal / mais fechado).
+
+E depois: **Baixar .pes**, **Salvar no catálogo** ou **Enviar direto para a máquina**.
+
+Como o arquivo é montado (automático):
+
+- **Base + ponto cheio**: cada traço recebe uma base (caminhada e, nos traços
+  largos, zigue-zague aberto) e por cima o ponto cheio.
+- **Densidade em milímetros**: ao mudar tamanho ou esticar, os pontos são
+  recalculados — o espaçamento entre pontos continua o mesmo.
+- **Letras grossas/grandes** viram **preenchimento** (tatami com base cruzada),
+  que fica melhor que ponto cheio largo demais.
+- **Costura da esquerda para a direita**, linha por linha: cada traço termina
+  na ponta oposta e o próximo começa ali; pingos e acentos entram quando a
+  agulha passa por eles. Corte de linha só quando precisa pular para uma letra
+  solta, sempre com arremate antes e depois.
+- **Origem no canto (0,0)** e cortes na posição da agulha — a máquina mostra e
+  borda o desenho inteiro, no lugar certo.
+
+Pela linha de comando:
+
+```bash
+python3 lettering.py "Felipe" --fonte great_vibes --largura 80 --saida felipe.pes
+python3 lettering.py "João\nFrederico" --fonte parisienne --largura 90 --altura 50
+python3 lettering.py "07/11/2026" --fonte dancing --largura 60 --esticar-v 120 --cor "#d4a017"
+python3 lettering.py --fontes        # lista as fontes
+python3 test_lettering.py            # testes rápidos
+```
+
+As fontes ficam em `fonts/` (licença SIL Open Font License, em `fonts/licencas/`).
+
 ## Arquivos
 
 | Arquivo | Função |
@@ -103,6 +154,10 @@ A máquina expõe um servidor HTTPS local com a API `pedxml`. O envio é um
 | `render.py` | Ficha técnica + imagem (SVG) do bordado |
 | `server.py` | Painel web + API REST (multi-máquina, catálogo, histórico) |
 | `send_cli.py` | Envio por linha de comando |
+| `lettering.py` | Gerador de letreiros (texto → `.pes`) |
+| `lettering_page.py` | Tela do gerador de letreiros (`/letreiro`) |
+| `test_lettering.py` | Testes rápidos do gerador |
+| `fonts/` | Fontes do gerador (+ licenças OFL) |
 | `machines.json` | Lista de máquinas (criado na 1ª execução) |
 | `designs/` | Pasta do catálogo de bordados |
 | `PROTOCOL.md` | Documentação do protocolo |

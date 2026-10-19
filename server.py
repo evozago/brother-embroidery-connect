@@ -22,6 +22,13 @@ API REST (resumo — veja README):
     GET  /api/history
     POST /api/send?ip=...&name=ARQ.pes        (corpo = bytes do arquivo)
     POST /api/send_catalog?ip=...&file=NOME   (envia item do catálogo)
+
+Gerador de Letreiros (http://localhost:8765/letreiro):
+    GET  /api/lettering/fonts
+    POST /api/lettering/preview   (JSON: text, font, max_w, max_h, stretch_x, ...)
+    POST /api/lettering/pes       (devolve o arquivo .pes)
+    POST /api/lettering/save      (salva no catálogo; JSON + name)
+    POST /api/lettering/send?ip=  (gera e envia para a máquina; JSON + name)
 """
 
 import argparse
@@ -31,13 +38,31 @@ import re
 import subprocess
 import sys
 import time
+import unicodedata
 import webbrowser
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
-from urllib.parse import urlparse, parse_qs
+from urllib.parse import urlparse, parse_qs, unquote
 
 import brother_machine as bm
 import convert
 import render
+import lettering_page
+
+FONT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fonts")
+LETTER_KEYS = ("text", "font", "max_w", "max_h", "font_mm", "stretch_x", "stretch_y",
+               "spacing_mm", "line_gap_mm", "color", "density")
+
+
+def lettering_make(params):
+    """Gera o letreiro (importa sob demanda: as bibliotecas são opcionais)."""
+    try:
+        import lettering
+    except ImportError:
+        raise RuntimeError("Gerador de letreiros precisa das bibliotecas extras: "
+                           "pip3 install -r requirements-letreiro.txt")
+    kw = {k: params[k] for k in LETTER_KEYS if params.get(k) not in (None, "")}
+    kw["text"] = params.get("text") or ""
+    return lettering.make(**kw)
 
 BASE = os.path.dirname(os.path.abspath(__file__))
 MACHINES_FILE = os.path.join(BASE, "machines.json")
@@ -145,7 +170,7 @@ PAGE = r"""<!doctype html><html lang="pt-br"><head><meta charset="utf-8">
  .muted{color:var(--mut);font-size:12px}.err{color:var(--er)}a{color:var(--ac)}
  h3{font-size:15px;margin:0 0 6px}
 </style></head><body><div class="wrap">
- <h1>🧵 Gerenciador Máquina de Bordar Brother</h1>
+ <h1>🧵 Gerenciador Máquina de Bordar Brother <a href="/letreiro" style="font-size:13px;margin-left:10px;color:#4f8cff">✍️ Gerador de letreiros</a></h1>
  <div class="sub" id="sub">conectando...</div>
 
  <div class="card" style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
@@ -360,6 +385,33 @@ class Handler(BaseHTTPRequestHandler):
             self.send_header("Content-Length", str(len(data)))
             self.end_headers()
             self.wfile.write(data)
+        elif p.path == "/letreiro":
+            data = lettering_page.PAGE.encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html; charset=utf-8")
+            self.send_header("Content-Length", str(len(data)))
+            self.end_headers()
+            self.wfile.write(data)
+        elif p.path == "/api/lettering/fonts":
+            try:
+                import lettering
+                fonts = [{"key": k, "file": v[0], "name": v[2], "desc": v[3]} for k, v in lettering.FONTS.items()]
+                self._json({"ok": True, "fonts": fonts})
+            except ImportError:
+                self._json({"ok": False, "fonts": [], "error": "pip3 install -r requirements-letreiro.txt"})
+        elif p.path.startswith("/fonts/"):
+            fn = os.path.basename(unquote(p.path[len("/fonts/"):]))
+            path = os.path.join(FONT_DIR, fn)
+            if not (fn.lower().endswith(".ttf") and os.path.isfile(path)):
+                self.send_error(404)
+                return
+            data = open(path, "rb").read()
+            self.send_response(200)
+            self.send_header("Content-Type", "font/ttf")
+            self.send_header("Cache-Control", "max-age=86400")
+            self.send_header("Content-Length", str(len(data)))
+            self.end_headers()
+            self.wfile.write(data)
         elif p.path == "/api/machines":
             self._json({"machines": load_machines()})
         elif p.path == "/api/status":
@@ -427,6 +479,43 @@ class Handler(BaseHTTPRequestHandler):
                 self._json({"ok": True, "dir": DESIGNS_DIR})
             except Exception as e:
                 self._json({"ok": False, "error": str(e)})
+        elif p.path.startswith("/api/lettering/"):
+            n = int(self.headers.get("Content-Length", 0))
+            try:
+                params = json.loads(self.rfile.read(n) or b"{}")
+            except ValueError:
+                self._json({"ok": False, "error": "pedido invalido"}, 400)
+                return
+            try:
+                r = lettering_make(params)
+            except Exception as e:
+                self._json({"ok": False, "error": str(e)}, 200 if p.path.endswith("preview") else 400)
+                return
+            raw_name = unicodedata.normalize("NFKD", (params.get("name") or "letreiro").strip() or "letreiro")
+            name = sanitize("".join(ch for ch in raw_name if not unicodedata.combining(ch)))
+            if not name.lower().endswith(".pes"):
+                name += ".pes"
+            if p.path == "/api/lettering/preview":
+                self._json({"ok": True, **{k: v for k, v in r.items() if k != "pes"}})
+            elif p.path == "/api/lettering/pes":
+                self.send_response(200)
+                self.send_header("Content-Type", "application/octet-stream")
+                self.send_header("Content-Disposition", 'attachment; filename="%s"' % name)
+                self.send_header("Content-Length", str(len(r["pes"])))
+                self.end_headers()
+                self.wfile.write(r["pes"])
+            elif p.path == "/api/lettering/save":
+                os.makedirs(DESIGNS_DIR, exist_ok=True)
+                with open(os.path.join(DESIGNS_DIR, name), "wb") as f:
+                    f.write(r["pes"])
+                self._json({"ok": True, "name": name})
+            elif p.path == "/api/lettering/send":
+                try:
+                    self._json(process_and_send(ip, r["pes"], name))
+                except Exception as e:
+                    self._json({"ok": False, "error": str(e)})
+            else:
+                self.send_error(404)
         elif p.path in ("/api/delete", "/api/rename"):
             self._json({"ok": False, "error": "Operacao ainda nao mapeada na maquina (precisa de captura)."}, 501)
         else:
