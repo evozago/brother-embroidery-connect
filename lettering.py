@@ -139,13 +139,12 @@ def render_mask(text, key, font_mm, stretch_x=1.0, stretch_y=1.0, spacing_mm=0.0
     return np.pad(m, 40), np.pad(ids, 40)
 
 
-def fit_font_size(text, key, max_w=None, max_h=None, font_mm=None, **kw):
+def fit_font_size(text, key, max_w=None, max_h=None, font_mm=None, margin=0.5, **kw):
     """Acha o tamanho de fonte que respeita largura/altura máximas (mm)."""
     if font_mm:
         return font_mm
     if not max_w and not max_h:
         max_h = 20.0
-    margin = 0.5  # a borda do ponto cheio engorda um pouco o desenho
     f = 20.0
     for _ in range(4):
         m = _crop(render_mask(text, key, f, **kw)[0])
@@ -268,17 +267,19 @@ def _normal(c, i):
     return -dy / n, dx / n
 
 
-def column_stitches(col, pull=0.12, min_w=0.7, max_half=3.5):
-    """Base + ponto cheio de UM traço. Começa em c[0] e TERMINA em c[-1]."""
+def column_stitches(col, pull=0.12, min_w=1.2, extra=0.3, max_half=3.5):
+    """Base + ponto cheio de UM traço. Começa em c[0] e TERMINA em c[-1].
+    min_w: largura mínima do traço (mm) — abaixo disso o bordado afunda no tecido.
+    extra: engrossa todos os traços (mm), para o letreiro aparecer mais."""
     c = col.c
-    hw = [min(max(h + pull, min_w / 2), max_half) for h in col.h]
+    hw = [min(max(h + pull + extra / 2, min_w / 2), max_half) for h in col.h]
     n = len(c)
     out = []
     # 1) base: caminhada central de ida (pontos de ~1.5 mm)
     walk = [c[i] for i in range(0, n, max(1, int(1.5 / max(1e-6, math.dist(c[0], c[1]) if n > 1 else 1))))]
     out += walk + [c[-1]]
     # 2) volta: zigue-zague aberto (traço largo) ou nova caminhada central (traço fino)
-    if max(hw) > 1.1:
+    if max(hw) >= 0.5:  # traço de 1 mm ou mais: base em zigue-zague (levanta o ponto cheio)
         stride = max(1, int(round(1.4 / max(1e-6, math.dist(c[0], c[1])))))
         for j, i in enumerate(range(n - 1, -1, -stride)):
             nx, ny = _normal(c, i); s = hw[i] * 0.6 * (1 if j % 2 else -1)
@@ -446,23 +447,25 @@ def plan(mask, density, pull):
     return pieces, mask
 
 
-def order_and_stitch(pieces, mask, ids=None):
+def order_and_stitch(pieces, mask, ids=None, style=None):
     """Ordena as peças linha por linha, da esquerda para a direita."""
+    style = style or {}
     if not pieces:
         return []
     if ids is None:
-        return _order_line(list(pieces))
+        return _order_line(list(pieces), style)
     lines = {}
     for kind, obj in pieces:
         pts = obj.c if kind == "col" else [p for ch in obj[1] for p in ch]
         lines.setdefault(_line_of(ids, pts[::5] or pts), []).append((kind, obj))
     seq = []
     for li in sorted(lines):
-        seq += _order_line(lines[li])
+        seq += _order_line(lines[li], style)
     return seq
 
 
-def _order_line(todo):
+def _order_line(todo, style=None):
+    style = style or {}
 
     def candidates(item, pos):
         kind, obj = item
@@ -506,7 +509,7 @@ def _order_line(todo):
         item = todo.pop(idx)
         cur_comp = comp_of(item)
         if kind == "col":
-            pts = column_stitches(var)
+            pts = column_stitches(var, **style)
             seq.append(pts)
             pos = pts[-1]
         else:
@@ -585,7 +588,7 @@ def to_pattern(seq, mask, color_hex, name="Linha"):
 # ======================================================================
 def make(text, font="great_vibes", max_w=None, max_h=None, font_mm=None,
          stretch_x=100, stretch_y=100, spacing_mm=0.0, line_gap_mm=1.5,
-         color="#6E9BC4", density=0.40, pull=0.12):
+         color="#6E9BC4", density=0.40, pull=0.12, min_w=1.2, bold=0.3):
     """Gera o bordado. Retorna dict com bytes do .pes, svg e ficha técnica."""
     if font not in FONTS:
         raise ValueError("Fonte desconhecida: %s" % font)
@@ -594,10 +597,12 @@ def make(text, font="great_vibes", max_w=None, max_h=None, font_mm=None,
     density = min(max(float(density), 0.30), 0.60)
     kw = dict(stretch_x=stretch_x / 100.0, stretch_y=stretch_y / 100.0,
               spacing_mm=spacing_mm, line_gap_mm=line_gap_mm)
-    fmm = fit_font_size(text, font, max_w, max_h, font_mm, **kw)
+    # o ponto cheio (e o engrossar) deixam o desenho um pouco maior que a fonte
+    fmm = fit_font_size(text, font, max_w, max_h, font_mm, margin=0.6 + 1.2 * max(0.0, float(bold)), **kw)
     mask, ids = render_mask(text, font, fmm, **kw)
     pieces, mask = plan(mask, density, pull)
-    seq = order_and_stitch(pieces, mask, ids)
+    style = dict(pull=pull, min_w=max(0.6, float(min_w)), extra=max(0.0, float(bold)))
+    seq = order_and_stitch(pieces, mask, ids, style)
     if not seq:
         raise ValueError("Nada para bordar.")
     pat = to_pattern(seq, mask, color, FONTS[font][2])
@@ -669,6 +674,8 @@ def main():
     ap.add_argument("--entre-linhas", type=float, default=1.5, help="espaço entre linhas, mm")
     ap.add_argument("--cor", default="#6E9BC4", help="cor da linha (hex)")
     ap.add_argument("--densidade", type=float, default=0.40, help="distância entre pontos, mm (0,30 fechado – 0,60 aberto)")
+    ap.add_argument("--traco-minimo", type=float, default=1.2, help="largura mínima do traço, mm (padrão 1,2)")
+    ap.add_argument("--engrossar", type=float, default=0.3, help="engrossa os traços, mm (0 = como a fonte)")
     ap.add_argument("--saida", default="letreiro.pes")
     ap.add_argument("--fontes", action="store_true", help="lista as fontes")
     a = ap.parse_args()
@@ -677,7 +684,8 @@ def main():
             print(f"  {k:12s} {nome:18s} {desc}")
         return
     r = make(a.texto.replace("\\n", "\n"), a.fonte, a.largura, a.altura, a.tamanho_fonte,
-             a.esticar_h, a.esticar_v, a.espaco, a.entre_linhas, a.cor, a.densidade)
+             a.esticar_h, a.esticar_v, a.espaco, a.entre_linhas, a.cor, a.densidade,
+             min_w=a.traco_minimo, bold=a.engrossar)
     with open(a.saida, "wb") as f:
         f.write(r["pes"])
     preview_png(r["pes"], os.path.splitext(a.saida)[0] + "_previa.png", a.cor)

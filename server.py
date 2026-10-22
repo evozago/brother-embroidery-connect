@@ -50,7 +50,7 @@ import lettering_page
 
 FONT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fonts")
 LETTER_KEYS = ("text", "font", "max_w", "max_h", "font_mm", "stretch_x", "stretch_y",
-               "spacing_mm", "line_gap_mm", "color", "density")
+               "spacing_mm", "line_gap_mm", "color", "density", "min_w", "bold")
 
 
 def lettering_make(params):

@@ -114,7 +114,8 @@ Na tela você escolhe:
 - **Tamanho** — largura e/ou altura máxima em mm; o desenho cresce até o
   primeiro limite, sem deformar.
 - **Esticar** na horizontal / vertical, **espaço entre letras** e **entre linhas**.
-- **Cor da linha** e **preenchimento** (mais aberto / normal / mais fechado).
+- **Cor da linha**, **espessura do traço** (fino / normal / grosso) e
+  **preenchimento** (mais aberto / normal / mais fechado).
 
 E depois: **Baixar .pes**, **Salvar no catálogo** ou **Enviar direto para a máquina**.
 
@@ -122,6 +123,8 @@ Como o arquivo é montado (automático):
 
 - **Base + ponto cheio**: cada traço recebe uma base (caminhada e, nos traços
   largos, zigue-zague aberto) e por cima o ponto cheio.
+- **Traço mínimo de 1,2 mm** (e engrossado em 0,3 mm no modo normal): letra
+  fina demais afunda no tecido e quase não aparece.
 - **Densidade em milímetros**: ao mudar tamanho ou esticar, os pontos são
   recalculados — o espaçamento entre pontos continua o mesmo.
 - **Letras grossas/grandes** viram **preenchimento** (tatami com base cruzada),

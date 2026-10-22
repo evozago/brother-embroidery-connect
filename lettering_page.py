@@ -62,6 +62,12 @@ PAGE = r"""<!doctype html><html lang="pt-br"><head><meta charset="utf-8">
    <h3>Linha e preenchimento</h3>
    <label>Cor da linha</label><input id="cor" type="color" value="#6e9bc4" style="height:40px;padding:2px">
    <div class="sw" id="sw"></div>
+   <label>Espessura do traço</label>
+   <select id="esp">
+    <option value="0|1.0">Fino (igual à fonte)</option>
+    <option value="0.3|1.2" selected>Normal — aparece bem no tecido (recomendado)</option>
+    <option value="0.6|1.4">Grosso (toalha felpuda, letra pequena)</option>
+   </select>
    <label>Preenchimento</label>
    <select id="den">
     <option value="0.50">Mais aberto (tecido fino, menos pontos)</option>
@@ -92,7 +98,7 @@ let FONTS=[],font='great_vibes',timer=null,busy=false,pending=false;
 const SW=['#ffffff','#f3eee2','#e8a0b0','#f6d66e','#d4a017','#6e9bc4','#a8acb2','#d4af37','#9aae78','#222222'];
 function params(){return {text:$('#txt').value,font,max_w:parseFloat($('#maxw').value)||null,max_h:parseFloat($('#maxh').value)||null,
  stretch_x:+$('#sx').value,stretch_y:+$('#sy').value,spacing_mm:+$('#sp').value,line_gap_mm:+$('#lg').value,
- color:$('#cor').value,density:+$('#den').value};}
+ color:$('#cor').value,density:+$('#den').value,bold:+$('#esp').value.split('|')[0],min_w:+$('#esp').value.split('|')[1]};}
 function labels(){$('#sxv').textContent=$('#sx').value+'%';$('#syv').textContent=$('#sy').value+'%';
  $('#spv').textContent=(+$('#sp').value).toFixed(1).replace('.',',')+' mm';$('#lgv').textContent=(+$('#lg').value).toFixed(1).replace('.',',')+' mm';}
 function resetStretch(){$('#sx').value=100;$('#sy').value=100;$('#sp').value=0;$('#lg').value=1.5;labels();sched();}
@@ -135,7 +141,7 @@ async function init(){
  document.querySelectorAll('.font').forEach(el=>el.onclick=()=>{font=el.dataset.k;document.querySelectorAll('.font').forEach(x=>x.classList.toggle('sel',x===el));sched();});
  $('#sw').innerHTML=SW.map(c=>'<i style="background:'+c+'" data-c="'+c+'"></i>').join('');
  document.querySelectorAll('#sw i').forEach(el=>el.onclick=()=>{$('#cor').value=el.dataset.c;sched();});
- ['txt','maxw','maxh','sx','sy','sp','lg','cor','den'].forEach(id=>$('#'+id).addEventListener('input',sched));
+ ['txt','maxw','maxh','sx','sy','sp','lg','cor','den','esp'].forEach(id=>$('#'+id).addEventListener('input',sched));
  $('#txt').addEventListener('input',()=>{$('#nome').value=$('#txt').value.split('\n').join(' ').trim().slice(0,40);});
  try{const m=await (await fetch('/api/machines')).json();$('#maq').innerHTML=(m.machines||[]).map(x=>'<option value="'+x.ip+'">'+(x.name||x.ip)+' ('+x.ip+')</option>').join('');}catch(e){}
  labels();prev();
