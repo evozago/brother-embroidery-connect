@@ -55,6 +55,13 @@ FONTS = {
     "pacifico":     ("Pacifico-Regular.ttf", None, "Pacifico", "gordinha, divertida"),
     "playfair":     ("PlayfairDisplay-Italic[wght].ttf", 500, "Playfair Itálico", "tradicional, com serifa"),
     "quicksand":    ("Quicksand[wght].ttf", 700, "Quicksand", "letra de forma, infantil"),
+    "satisfy":      ("Satisfy-Regular.ttf", None, "Satisfy", "cursiva simples, maiúsculas discretas"),
+    "courgette":    ("Courgette-Regular.ttf", None, "Courgette", "inclinada, bem legível"),
+    "yellowtail":   ("Yellowtail-Regular.ttf", None, "Yellowtail", "cursiva retrô, traço firme"),
+    "grand_hotel":  ("GrandHotel-Regular.ttf", None, "Grand Hotel", "cursiva elegante e compacta"),
+    "norican":      ("Norican-Regular.ttf", None, "Norican", "cursiva cheinha, delicada"),
+    "marck":        ("MarckScript-Regular.ttf", None, "Marck Script", "letra de mão, simples"),
+    "kaushan":      ("KaushanScript-Regular.ttf", None, "Kaushan Script", "pincel, marcante"),
 }
 
 
@@ -435,11 +442,11 @@ def plan(mask, density, pull):
     for k in fill_comps:
         m = (lab == k).astype(np.uint8)
         for poly in _mask_polys(m):
-            if poly.area < 2.0:  # pingo/acento pequeno: garante tamanho mínimo
+            if poly.area < 6.0:  # pingo/acento pequeno: ponto cheio fechado + tamanho mínimo
                 r = math.sqrt(poly.area / math.pi)
                 if r < 0.55:
                     poly = poly.buffer(0.55 - r)
-                chains = tatami_rows(poly, 75, 0.2, 99)  # vai-e-vem bem fechado (tipo satin)
+                chains = tatami_rows(poly, 75, 0.32, 99)  # vai-e-vem fechado (tipo satin); >0,3 mm p/ não ser filtrado
                 chains = [[p for ch in chains for p in ch]]
             else:
                 chains = fill_piece(poly, density)
